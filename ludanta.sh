@@ -62,7 +62,7 @@ check_version() {
     fi
 
     local remote_version
-    remote_version=$(curl -s https://raw.githubusercontent.com/jeremehancock/Ludanta/refs/heads/main/ludanta.sh | grep "^VERSION=" | cut -d'"' -f2)
+    remote_version=$(curl -s -H "Cache-Control: no-cache" https://raw.githubusercontent.com/jeremehancock/Ludanta/refs/heads/main/ludanta.sh | grep "^VERSION=" | cut -d'"' -f2)
     
     if [[ -z "$remote_version" ]]; then
         echo "Error: Could not fetch remote version"
@@ -83,7 +83,7 @@ update_script() {
     fi
 
     local remote_version
-    remote_version=$(curl -s https://raw.githubusercontent.com/jeremehancock/Ludanta/refs/heads/main/ludanta.sh | grep "^VERSION=" | cut -d'"' -f2)
+    remote_version=$(curl -s -H "Cache-Control: no-cache" https://raw.githubusercontent.com/jeremehancock/Ludanta/refs/heads/main/ludanta.sh | grep "^VERSION=" | cut -d'"' -f2)
     
     if [[ -z "$remote_version" ]]; then
         echo "Error: Could not fetch remote version"
@@ -111,7 +111,7 @@ update_script() {
         return 0
     fi
     
-    if curl -o "$script_name" -L https://raw.githubusercontent.com/jeremehancock/Ludanta/main/ludanta.sh; then
+    if curl -H "Cache-Control: no-cache" -o "$script_name" -L https://raw.githubusercontent.com/jeremehancock/Ludanta/main/ludanta.sh; then
         local last_backup=$(ls -t "$backup_dir"/*.backup | head -n 1)
         
         if [[ -n "$last_backup" ]]; then
