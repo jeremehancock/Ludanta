@@ -13,6 +13,10 @@ Ludanta is a lightweight command-line tool that displays what's currently playin
 - Cross-platform compatibility (Linux, macOS)
 - Automatic configuration backup during updates
 
+## Screenshots
+
+![Ludanta](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/ludanta.png "Ludanta")
+
 ## Requirements
 - curl
 - xmlstarlet
