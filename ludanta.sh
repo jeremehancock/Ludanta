@@ -47,7 +47,7 @@ JELLYFIN_API_KEY=""
 ########################################################################################################
 
 # Version number
-VERSION="1.0.0"
+VERSION="1.0.1"
 
 # Version management functions
 show_version() {
