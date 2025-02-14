@@ -6,7 +6,7 @@ Ludanta is a lightweight command-line tool that displays what's currently playin
 
 ## Features
 - Real-time playback monitoring for both Plex and Jellyfin servers
-- Support for multiple media types (movies, TV shows, music)
+- Support for multiple media types (movies, TV shows, music, and live TV)
 - Clean, color-coded output for easy reading
 - Transcoding status indicators
 - Built-in version checking and update mechanism

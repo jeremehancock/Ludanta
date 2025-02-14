@@ -35,7 +35,7 @@
 # Plex Configuration
 PLEX_ENABLED=true                               # Set to false to disable Plex checking
 PLEX_URL="http://localhost:32400"
-PLEX_TOKEN=""                                   # Your Plex token (X-Plex-Token)
+PLEX_TOKEN=""
 
 # Jellyfin Configuration
 JELLYFIN_ENABLED=true                           # Set to false to disable Jellyfin checking
@@ -46,10 +46,8 @@ JELLYFIN_API_KEY=""
 ################################### DO NOT EDIT ANYTHING BELOW #########################################
 ########################################################################################################
 
-# Version number
-VERSION="1.0.2"
+VERSION="1.0.3"
 
-# Version management functions
 show_version() {
     echo "Ludanta v${VERSION}"
     check_version
@@ -155,7 +153,6 @@ update_script() {
     fi
 }
 
-# Dependencies check function
 check_dependencies() {
     local deps=("curl" "xmlstarlet" "jq" "tput")
     local missing=()
@@ -173,7 +170,6 @@ check_dependencies() {
     fi
 }
 
-# Check if terminal supports colors and styles
 check_terminal_support() {
     if command -v tput >/dev/null 2>&1; then
         if tput setaf 1 >/dev/null 2>&1; then
@@ -213,7 +209,6 @@ check_terminal_support() {
     fi
 }
 
-# Safe echo function that works cross-platform
 safe_echo() {
     if [[ "${OSTYPE}" == "darwin"* ]]; then
         # macOS
@@ -224,18 +219,15 @@ safe_echo() {
     fi
 }
 
-# Function to URL encode strings
 urlencode() {
     local string="$1"
     echo -n "$string" | curl -Gso /dev/null -w %{url_effective} --data-urlencode @- "" | cut -c 3-
 }
 
-# Function to decode HTML entities
 decode_html_entities() {
     echo "$1" | sed 's/&amp;/\&/g; s/&lt;/</g; s/&gt;/>/g; s/&quot;/"/g; s/&#39;/'"'"'/g' | sed 's/&$//'
 }
 
-# Function to check Plex status
 check_plex() {
     if [ "$PLEX_ENABLED" = true ] && [ -n "$PLEX_TOKEN" ]; then
         local plex_xml
@@ -244,12 +236,15 @@ check_plex() {
         if [ -n "$plex_xml" ]; then
             local currently_playing
             currently_playing=$(printf '%s' "$plex_xml" | LC_ALL=C xmlstarlet sel -t \
-                -m "//Video | //Track" \
-                -v "@grandparentTitle" -o "" \
-                -i "string-length(@grandparentTitle) > 0" -o " - " -b \
-                -v "@title" -o " ..................." \
-                -v "//User/@title" \
-                -m "//TranscodeSession" \
+                -m "//MediaContainer/Video | //MediaContainer/Track" \
+                -v "concat(
+                    @grandparentTitle,
+                    substring(' - ', 1, number(string-length(@grandparentTitle) > 0) * 3),
+                    @title,
+                    '...................',
+                    ./User/@title
+                )" \
+                -m ".//TranscodeSession" \
                 -i "@videoDecision='transcode' or @audioDecision='transcode'" \
                     -o " •" \
                 -b \
@@ -259,16 +254,20 @@ check_plex() {
                 safe_echo ""
                 safe_echo "Now Playing on ${HOSTNAME^} (${italic_start}${orange_color}Plex${reset}):${reset}"
                 # Decode HTML entities before displaying
-                decoded_playing=$(decode_html_entities "$currently_playing")
-                # Remove episode numbering (e.g., "(1)")
-                decoded_playing=$(printf '%s' "$decoded_playing" | sed 's/ ([0-9])//')
-                safe_echo "${green_color}${decoded_playing}${reset}"
+                while IFS= read -r line; do
+                    if [ -n "$line" ]; then
+                        decoded_line=$(decode_html_entities "$line")
+                        # Remove any empty dots-only lines
+                        if [[ "$decoded_line" != *".................."* || "$decoded_line" =~ [^\.] ]]; then
+                            safe_echo "${green_color}${decoded_line}${reset}"
+                        fi
+                    fi
+                done <<< "$currently_playing"
             fi
         fi
     fi
 }
 
-# Function to check Jellyfin status
 check_jellyfin() {
     if [ "$JELLYFIN_ENABLED" = true ] && [ -n "$JELLYFIN_API_KEY" ]; then
         local currently_playing
@@ -297,7 +296,6 @@ check_jellyfin() {
     fi
 }
 
-# Modified main function to include version management
 main() {
     check_dependencies
     
