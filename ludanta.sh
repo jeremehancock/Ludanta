@@ -46,7 +46,7 @@ JELLYFIN_API_KEY=""
 ################################### DO NOT EDIT ANYTHING BELOW #########################################
 ########################################################################################################
 
-VERSION="1.0.5"
+VERSION="1.0.6"
 VERBOSE=false
 
 show_version() {
@@ -247,64 +247,66 @@ check_plex() {
                         ./User/@title
                     )" \
                     -n \
-					-v "concat(
-						'    Media Info: ',
-						substring('Live TV', 1, number(not(number(@duration) > 0)) * 7),
-						substring(concat(format-number(@duration div 1000 div 60, '0'), ' min'), 1, number(@duration > 0) * 20)
-					)" \
-					-n \
-					-m ".//Media" \
-					-v "concat(
-						'    Media Info: Container: ', 
-						substring(@container, 1, number(string-length(@container) > 0) * 50),
-						substring('Unknown', 1, number(string-length(@container) = 0) * 7),
-						', Audio Channels: ', 
-						substring(string(@audioChannels), 1, number(string-length(@audioChannels) > 0) * 10),
-						substring('Unknown', 1, number(string-length(@audioChannels) = 0) * 7)
-					)" \
-					-n \
-					-n \
+                    -v "concat(
+                        '    Media Info: ',
+                        substring('Live TV', 1, number(not(number(@duration) > 0)) * 7),
+                        substring(concat(format-number(@duration div 1000 div 60, '0'), ' min'), 1, number(@duration > 0) * 20)
+                    )" \
+                    -n \
+                    -m ".//Media" \
+                    -v "concat(
+                        '    Media Info: Container: ', 
+                        substring(@container, 1, number(string-length(@container) > 0) * 50),
+                        substring('Unknown', 1, number(string-length(@container) = 0) * 7),
+                        ', Audio Channels: ', 
+                        substring(string(@audioChannels), 1, number(string-length(@audioChannels) > 0) * 10),
+                        substring('Unknown', 1, number(string-length(@audioChannels) = 0) * 7),
+                        ', Resolution: ',
+                        substring(concat(@videoResolution, 'p'), 1, number(string-length(@videoResolution) > 0) * 10),
+                        substring('Unknown', 1, number(string-length(@videoResolution) = 0) * 7)
+                    )" \
+                    -n \
                     -n \
                     -b \
-					-m ".//TranscodeSession" \
-					-v "concat(
-						'    Transcoding: ',
-						'Video: ', @videoDecision, 
-						', Audio: ', @audioDecision,
-						', Progress: ', 
-						substring('Live', 1, number(not(number(@progress) > -1)) * 4),
-						substring(concat(format-number(@progress, '0.00'), '%'), 1, number(@progress > -1) * 10)
-					)" \
+                    -m ".//TranscodeSession" \
+                    -v "concat(
+                        '    Transcoding: ',
+                        'Video: ', @videoDecision, 
+                        ', Audio: ', @audioDecision,
+                        ', Progress: ', 
+                        substring('Live', 1, number(not(number(@progress) > -1)) * 4),
+                        substring(concat(format-number(@progress, '0.00'), '%'), 1, number(@progress > -1) * 10)
+                    )" \
                     -n \
                     -b \
                     -m ".//Stream[@streamType='1']" \
-					-v "concat(
-						'    Video Stream: ',
-						'Codec: ', @codec,
-						', Bitrate: ', @bitrate div 1000, ' Mbps',
-						', Framerate: ', format-number(@frameRate, '0.00'),
-						' (', @width, 'x', @height, ')'
-					)" \
+                    -v "concat(
+                        '    Video Stream: ',
+                        'Codec: ', @codec,
+                        ', Bitrate: ', @bitrate div 1000, ' Mbps',
+                        ', Framerate: ', format-number(@frameRate, '0.00'),
+                        ' (', @width, 'x', @height, ')'
+                    )" \
                     -n \
                     -b \
                     -m ".//Stream[@streamType='2']" \
-					-v "concat(
-						'    Audio Stream: ',
-						'Codec: ', @codec,
-						', Channels: ', @channels,
-						', Language: ', concat(@language, substring('Unknown', 1, 1 div string-length(@language))),
-						', Bitrate: ', @bitrate div 1000, ' Mbps'
-					)" \
+                    -v "concat(
+                        '    Audio Stream: ',
+                        'Codec: ', @codec,
+                        ', Channels: ', @channels,
+                        ', Language: ', concat(@language, substring('Unknown', 1, 1 div string-length(@language))),
+                        ', Bitrate: ', @bitrate div 1000, ' Mbps'
+                    )" \
                     -n \
                     -b \
                     -m ".//Player" \
-					-v "concat(
-						'    Player: ',
-						@product, ' on ', @platform,
-						', State: ', @state,
-						', Stream Origin: ', 
-						substring('RemoteLocal', 1 + (@local = 1) * 6, 6)
-					)" \
+                    -v "concat(
+                        '    Player: ',
+                        @product, ' on ', @platform,
+                        ', State: ', @state,
+                        ', Stream Origin: ', 
+                        substring('RemoteLocal', 1 + (@local = 1) * 6, 6)
+                    )" \
                     -n \
                     -b)
             else
@@ -381,6 +383,7 @@ check_jellyfin() {
                         "Live TV"
                     end) +
                     "\n    Container: " + (.NowPlayingItem.Container // "Unknown") +
+                    ", Resolution: " + ((.NowPlayingItem.Width | tostring) + "x" + (.NowPlayingItem.Height | tostring) // "Unknown") +
                     (if .NowPlayingItem.MediaStreams then
                         "\n    Audio Info: " + 
                         (if (.NowPlayingItem.MediaStreams | map(select(.Type == "Audio")) | length) > 0 then
