@@ -10,7 +10,6 @@ Ludanta is a lightweight command-line tool that displays what's currently playin
 - Clean, color-coded output for easy reading
 - Transcoding status indicators
 - Built-in version checking and update mechanism
-- Cross-platform compatibility (Linux, macOS)
 - Automatic configuration backup during updates
 
 ## Screenshots
