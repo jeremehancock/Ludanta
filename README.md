@@ -93,6 +93,8 @@ Movie Title ................... Username •
 ```
 The bullet point (•) indicates that transcoding is active for that stream.
 
+You can also use the `-d` flag to give more details for each stream.
+
 ## Updates
 Ludanta includes an automatic update system that:
 - Creates backups of your current version
