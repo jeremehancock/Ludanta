@@ -17,6 +17,8 @@ Ludanta is a lightweight command-line tool that displays what's currently playin
 
 ![Ludanta](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/ludanta.png "Ludanta")
 
+![Ludanta Detailed](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/ludanta-detailed.png "Ludanta Detailed")
+
 ## Requirements
 - curl
 - xmlstarlet
@@ -78,6 +80,7 @@ JELLYFIN_API_KEY=""                            # Your Jellyfin API key
 ```
 -v    Show version information
 -u    Update to latest version
+-d    Show extra details for streams
 ```
 
 ## Output Format

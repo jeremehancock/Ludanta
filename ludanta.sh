@@ -46,7 +46,8 @@ JELLYFIN_API_KEY=""
 ################################### DO NOT EDIT ANYTHING BELOW #########################################
 ########################################################################################################
 
-VERSION="1.0.3"
+VERSION="1.0.5"
+VERBOSE=false
 
 show_version() {
     echo "Ludanta v${VERSION}"
@@ -235,31 +236,111 @@ check_plex() {
         
         if [ -n "$plex_xml" ]; then
             local currently_playing
-            currently_playing=$(printf '%s' "$plex_xml" | LC_ALL=C xmlstarlet sel -t \
-                -m "//MediaContainer/Video | //MediaContainer/Track" \
-                -v "concat(
-                    @grandparentTitle,
-                    substring(' - ', 1, number(string-length(@grandparentTitle) > 0) * 3),
-                    @title,
-                    '...................',
-                    ./User/@title
-                )" \
-                -m ".//TranscodeSession" \
-                -i "@videoDecision='transcode' or @audioDecision='transcode'" \
-                    -o " •" \
-                -b \
-                -n)
+            if [ "$VERBOSE" = true ]; then
+                currently_playing=$(printf '%s' "$plex_xml" | LC_ALL=C xmlstarlet sel -t \
+                    -m "//MediaContainer/Video | //MediaContainer/Track" \
+                    -v "concat(
+                        @grandparentTitle,
+                        substring(' - ', 1, number(string-length(@grandparentTitle) > 0) * 3),
+                        @title,
+                        '...................',
+                        ./User/@title
+                    )" \
+                    -n \
+					-v "concat(
+						'    Media Info: ',
+						substring('Live TV', 1, number(not(number(@duration) > 0)) * 7),
+						substring(concat(format-number(@duration div 1000 div 60, '0'), ' min'), 1, number(@duration > 0) * 20)
+					)" \
+					-n \
+					-m ".//Media" \
+					-v "concat(
+						'    Media Info: Container: ', 
+						substring(@container, 1, number(string-length(@container) > 0) * 50),
+						substring('Unknown', 1, number(string-length(@container) = 0) * 7),
+						', Audio Channels: ', 
+						substring(string(@audioChannels), 1, number(string-length(@audioChannels) > 0) * 10),
+						substring('Unknown', 1, number(string-length(@audioChannels) = 0) * 7)
+					)" \
+					-n \
+					-n \
+                    -n \
+                    -b \
+					-m ".//TranscodeSession" \
+					-v "concat(
+						'    Transcoding: ',
+						'Video: ', @videoDecision, 
+						', Audio: ', @audioDecision,
+						', Progress: ', 
+						substring('Live', 1, number(not(number(@progress) > -1)) * 4),
+						substring(concat(format-number(@progress, '0.00'), '%'), 1, number(@progress > -1) * 10)
+					)" \
+                    -n \
+                    -b \
+                    -m ".//Stream[@streamType='1']" \
+					-v "concat(
+						'    Video Stream: ',
+						'Codec: ', @codec,
+						', Bitrate: ', @bitrate div 1000, ' Mbps',
+						', Framerate: ', format-number(@frameRate, '0.00'),
+						' (', @width, 'x', @height, ')'
+					)" \
+                    -n \
+                    -b \
+                    -m ".//Stream[@streamType='2']" \
+					-v "concat(
+						'    Audio Stream: ',
+						'Codec: ', @codec,
+						', Channels: ', @channels,
+						', Language: ', concat(@language, substring('Unknown', 1, 1 div string-length(@language))),
+						', Bitrate: ', @bitrate div 1000, ' Mbps'
+					)" \
+                    -n \
+                    -b \
+                    -m ".//Player" \
+					-v "concat(
+						'    Player: ',
+						@product, ' on ', @platform,
+						', State: ', @state,
+						', Stream Origin: ', 
+						substring('RemoteLocal', 1 + (@local = 1) * 6, 6)
+					)" \
+                    -n \
+                    -b)
+            else
+                currently_playing=$(printf '%s' "$plex_xml" | LC_ALL=C xmlstarlet sel -t \
+                    -m "//MediaContainer/Video | //MediaContainer/Track" \
+                    -v "concat(
+                        @grandparentTitle,
+                        substring(' - ', 1, number(string-length(@grandparentTitle) > 0) * 3),
+                        @title,
+                        '...................',
+                        ./User/@title
+                    )" \
+                    -m ".//TranscodeSession" \
+                    -i "@videoDecision='transcode' or @audioDecision='transcode'" \
+                        -o " •" \
+                    -b \
+                    -n)
+            fi
             
             if [ -n "$currently_playing" ]; then
                 safe_echo ""
                 safe_echo "Now Playing on ${HOSTNAME^} (${italic_start}${orange_color}Plex${reset}):${reset}"
-                # Decode HTML entities before displaying
                 while IFS= read -r line; do
                     if [ -n "$line" ]; then
                         decoded_line=$(decode_html_entities "$line")
-                        # Remove any empty dots-only lines
                         if [[ "$decoded_line" != *".................."* || "$decoded_line" =~ [^\.] ]]; then
-                            safe_echo "${green_color}${decoded_line}${reset}"
+                            if [[ "$decoded_line" == *"Transcoding:"* || \
+                                  "$decoded_line" == *"Stream:"* || \
+                                  "$decoded_line" == *"Media Info:"* || \
+                                  "$decoded_line" == *"Source:"* || \
+                                  "$decoded_line" == *"File:"* || \
+                                  "$decoded_line" == *"Player:"* ]]; then
+                                safe_echo "${blue_color}${decoded_line}${reset}"
+                            else
+                                safe_echo "${green_color}${decoded_line}${reset}"
+                            fi
                         fi
                     fi
                 done <<< "$currently_playing"
@@ -270,28 +351,97 @@ check_plex() {
 
 check_jellyfin() {
     if [ "$JELLYFIN_ENABLED" = true ] && [ -n "$JELLYFIN_API_KEY" ]; then
-        local currently_playing
-        currently_playing=$(curl -s "${JELLYFIN_URL}/Sessions?api_key=${JELLYFIN_API_KEY}" | \
-            jq -r '.[] | select(.NowPlayingItem != null) | 
-            if .NowPlayingItem.Type == "Audio" then
-                if .NowPlayingItem.AlbumArtist != null and .NowPlayingItem.AlbumArtist != "" then
-                    "\(.NowPlayingItem.AlbumArtist) - \(.NowPlayingItem.Name)"
-                else
-                    "\(.NowPlayingItem.Name)"
-                end
-            elif .NowPlayingItem.SeriesName != null and .NowPlayingItem.SeriesName != "" then
-                "\(.NowPlayingItem.SeriesName) - \(.NowPlayingItem.Name)"
-            else
-                "\(.NowPlayingItem.Name)"
-            end + " ...................\(.UserName) \(.PlayState.PlayMethod)"')
+        local jellyfin_json
+        jellyfin_json=$(curl -s "${JELLYFIN_URL}/Sessions?api_key=${JELLYFIN_API_KEY}")
         
-        if [ -n "$currently_playing" ]; then
-            currently_playing=$(printf '%s' "$currently_playing" | sed 's/\bTranscode\b/•/')
-            currently_playing=$(printf '%s' "$currently_playing" | sed 's/\bDirectPlay\b//')
+        if [ -n "$jellyfin_json" ]; then
+            local currently_playing
+            if [ "$VERBOSE" = true ]; then
+                currently_playing=$(echo "$jellyfin_json" | \
+                    jq -r '.[] | select(.NowPlayingItem != null) | 
+                    (if .NowPlayingItem.Type == "Audio" then
+                        if .NowPlayingItem.AlbumArtist != null and .NowPlayingItem.AlbumArtist != "" then
+                            .NowPlayingItem.AlbumArtist + " - " + .NowPlayingItem.Name
+                        else
+                            .NowPlayingItem.Name
+                        end
+                    elif .NowPlayingItem.SeriesName != null and .NowPlayingItem.SeriesName != "" then
+                        .NowPlayingItem.SeriesName + " - " + .NowPlayingItem.Name
+                    else
+                        .NowPlayingItem.Name
+                    end + " ..................." + .UserName) + 
+                    "\n    Media Info: " + 
+                    (if .NowPlayingItem.RunTimeTicks then
+                        (if .NowPlayingItem.RunTimeTicks > 0 then
+                            ((.NowPlayingItem.RunTimeTicks/10000000/60 | floor | tostring) + " min")
+                        else
+                            "Live TV"
+                        end)
+                    else
+                        "Live TV"
+                    end) +
+                    "\n    Container: " + (.NowPlayingItem.Container // "Unknown") +
+                    (if .NowPlayingItem.MediaStreams then
+                        "\n    Audio Info: " + 
+                        (if (.NowPlayingItem.MediaStreams | map(select(.Type == "Audio")) | length) > 0 then
+                            (.NowPlayingItem.MediaStreams | map(select(.Type == "Audio"))[0] | 
+                            "Channels: " + (.Channels | tostring) + 
+                            ", Codec: " + .Codec +
+                            ", Language: " + (.Language // "Unknown"))
+                        else
+                            "No audio stream found"
+                        end)
+                    else
+                        "\n    Audio Info: Unknown"
+                    end) +
+                    "\n    Player Info: " + (.Client // "Unknown") + " on " + (.DeviceName // "Unknown") +
+                    "\n    Playback: " + .PlayState.PlayMethod')
+            else
+                currently_playing=$(echo "$jellyfin_json" | \
+                    jq -r '.[] | select(.NowPlayingItem != null) | 
+                    if .NowPlayingItem.Type == "Audio" then
+                        if .NowPlayingItem.AlbumArtist != null and .NowPlayingItem.AlbumArtist != "" then
+                            "\(.NowPlayingItem.AlbumArtist) - \(.NowPlayingItem.Name)"
+                        else
+                            "\(.NowPlayingItem.Name)"
+                        end
+                    elif .NowPlayingItem.SeriesName != null and .NowPlayingItem.SeriesName != "" then
+                        "\(.NowPlayingItem.SeriesName) - \(.NowPlayingItem.Name)"
+                    else
+                        "\(.NowPlayingItem.Name)"
+                    end + " ...................\(.UserName) \(.PlayState.PlayMethod)"')
+            fi
             
-            safe_echo ""
-            safe_echo "Now Playing on ${HOSTNAME^} (${italic_start}${blue_color}Jellyfin${reset}):${reset}"
-            safe_echo "${green_color}${currently_playing}${reset}"
+            if [ -n "$currently_playing" ]; then
+                if [ "$VERBOSE" = false ]; then
+                    currently_playing=$(printf '%s' "$currently_playing" | sed 's/\bTranscode\b/•/')
+                    currently_playing=$(printf '%s' "$currently_playing" | sed 's/\bDirectPlay\b//')
+                fi
+                
+                safe_echo ""
+                safe_echo "Now Playing on ${HOSTNAME^} (${italic_start}${blue_color}Jellyfin${reset}):${reset}"
+                while IFS= read -r line; do
+                    if [ -n "$line" ]; then
+                        if [[ "$line" == *"Transcoding:"* || \
+                              "$line" == *"Playback:"* || \
+                              "$line" == *"Video Stream:"* || \
+                              "$line" == *"Audio Stream:"* || \
+                              "$line" == *"Media Info:"* || \
+                              "$line" == *"Source:"* || \
+                              "$line" == *"Container:"* || \
+                              "$line" == *"Direct Playing:"* || \
+                              "$line" == *"Player Info:"* || \
+                              "$line" == *"Progress:"* || \
+                              "$line" == *"Hardware Acceleration:"* || \
+                              "$line" == *"Audio Info:"* || \
+                              "$line" == *"Subtitles:"* ]]; then
+                            safe_echo "${blue_color}${line}${reset}"
+                        else
+                            safe_echo "${green_color}${line}${reset}"
+                        fi
+                    fi
+                done <<< "$currently_playing"
+            fi
         fi
     fi
 }
@@ -299,7 +449,7 @@ check_jellyfin() {
 main() {
     check_dependencies
     
-    while getopts "vu" opt; do
+    while getopts "vud" opt; do
         case ${opt} in
             v )
                 show_version
@@ -308,6 +458,9 @@ main() {
             u )
                 update_script
                 exit 0
+                ;;
+            d )
+                VERBOSE=true
                 ;;
             \? )
                 echo "Invalid Option: -$OPTARG" 1>&2
@@ -321,7 +474,6 @@ main() {
     check_plex
     check_jellyfin
     
-    # Add a final newline if anything was displayed
     if { [ "$JELLYFIN_ENABLED" = true ] && [ -n "$JELLYFIN_API_KEY" ]; } || \
        { [ "$PLEX_ENABLED" = true ] && [ -n "$PLEX_TOKEN" ]; }; then
         safe_echo ""
