@@ -46,7 +46,7 @@ JELLYFIN_API_KEY=""
 ################################### DO NOT EDIT ANYTHING BELOW #########################################
 ########################################################################################################
 
-VERSION="1.0.7"
+VERSION="1.0.8"
 VERBOSE=false
 
 get_plex_server_name() {
@@ -73,9 +73,67 @@ get_jellyfin_server_name() {
     fi
 }
 
-show_version() {
-    echo "Ludanta v${VERSION}"
-    check_version
+check_terminal_support() {
+    if command -v tput >/dev/null 2>&1; then
+        if tput setaf 1 >/dev/null 2>&1; then
+            # Terminal supports colors
+            blue_color=$(tput setaf 4)
+            orange_color=$(tput setaf 3)  # Using yellow as fallback for orange
+            green_color=$(tput setaf 2)
+        else
+            blue_color=""
+            orange_color=""
+            green_color=""
+        fi
+        
+        # Check for italic support using a more compatible approach
+        if tput sitm >/dev/null 2>&1; then
+            italic_start=$(tput sitm)
+            italic_end=$(tput ritm)
+        else
+            # Fallback to dim if italic not supported
+            if tput dim >/dev/null 2>&1; then
+                italic_start=$(tput dim)
+                italic_end=$(tput sgr0)
+            else
+                italic_start=""
+                italic_end=""
+            fi
+        fi
+        reset=$(tput sgr0)
+    else
+        # No tput support, use basic ANSI codes with printf for better compatibility
+        blue_color=$(printf '\033[34m')
+        orange_color=$(printf '\033[33m')
+        green_color=$(printf '\033[32m')
+        italic_start=$(printf '\033[3m')
+        italic_end=$(printf '\033[23m')
+        reset=$(printf '\033[0m')
+    fi
+}
+
+safe_echo() {
+    if [[ "${OSTYPE}" == "darwin"* ]]; then
+        # macOS: Use printf for better compatibility
+        printf "%b\n" "$*"
+    else
+        # Linux and others
+        echo -e "$@"
+    fi
+}
+
+urlencode() {
+    local string="$1"
+    printf '%s' "$string" | curl -Gso /dev/null -w %{url_effective} --data-urlencode @- "" | cut -c 3-
+}
+
+decode_html_entities() {
+    printf '%s' "$1" | sed -e 's/&amp;/\&/g' \
+                          -e 's/&lt;/</g' \
+                          -e 's/&gt;/>/g' \
+                          -e 's/&quot;/"/g' \
+                          -e 's/&#39;/'"'"'/g' \
+                          -e 's/&$//'
 }
 
 check_version() {
@@ -84,19 +142,26 @@ check_version() {
         return 1
     fi
 
+    # Use grep -a to treat file as text for macOS compatibility
     local remote_version
-    remote_version=$(curl -s -H "Cache-Control: no-cache" https://raw.githubusercontent.com/jeremehancock/Ludanta/refs/heads/main/ludanta.sh | grep "^VERSION=" | cut -d'"' -f2)
+    remote_version=$(curl -s -H "Cache-Control: no-cache" https://raw.githubusercontent.com/jeremehancock/Ludanta/refs/heads/main/ludanta.sh | grep -a "^VERSION=" | cut -d'"' -f2)
     
-    if [[ -z "$remote_version" ]]; then
+    if [ -z "$remote_version" ]; then
         echo "Error: Could not fetch remote version"
         return 1
     fi
 
-    if [[ "$remote_version" > "$VERSION" ]]; then
-        echo "Update available: v$VERSION → v$remote_version"
+    # Only show update available if remote version is newer
+    if printf '%s\n' "$remote_version" "$VERSION" | sort -V | tail -n1 | grep -q "^$remote_version" && [ "$remote_version" != "$VERSION" ]; then
+        printf "Update available: v%s → v%s\n" "$VERSION" "$remote_version"
         echo "Use -u to update to the latest version"
         return 0
     fi
+}
+
+show_version() {
+    echo "Ludanta v${VERSION}"
+    check_version
 }
 
 update_script() {
@@ -105,20 +170,21 @@ update_script() {
         return 1
     fi
 
+    # Use grep -a to treat file as text for macOS compatibility
     local remote_version
-    remote_version=$(curl -s -H "Cache-Control: no-cache" https://raw.githubusercontent.com/jeremehancock/Ludanta/refs/heads/main/ludanta.sh | grep "^VERSION=" | cut -d'"' -f2)
+    remote_version=$(curl -s -H "Cache-Control: no-cache" https://raw.githubusercontent.com/jeremehancock/Ludanta/refs/heads/main/ludanta.sh | grep -a "^VERSION=" | cut -d'"' -f2)
     
-    if [[ -z "$remote_version" ]]; then
+    if [ -z "$remote_version" ]; then
         echo "Error: Could not fetch remote version"
         return 1
     fi
 
-    if [[ "$remote_version" == "$VERSION" ]]; then
+    if [ "$remote_version" = "$VERSION" ]; then
         echo "No updates available. You are running the latest version (v${VERSION})."
         return 0
     fi
 
-    echo "Update available: v$VERSION → v$remote_version"
+    printf "Update available: v%s → v%s\n" "$VERSION" "$remote_version"
     
     local backup_dir="backups"
     mkdir -p "$backup_dir"
@@ -127,7 +193,7 @@ update_script() {
     local backup_file="${backup_dir}/${script_name}.v${VERSION}.backup"
     cp "$0" "$backup_file"
     
-    echo -n "Do you want to proceed with the update? [y/N] "
+    printf "Do you want to proceed with the update? [y/N] "
     read -r response
     if [[ ! "$response" =~ ^[Yy]$ ]]; then
         echo "Update cancelled."
@@ -135,10 +201,10 @@ update_script() {
     fi
     
     if curl -H "Cache-Control: no-cache" -o "$script_name" -L https://raw.githubusercontent.com/jeremehancock/Ludanta/main/ludanta.sh; then
-        local last_backup=$(ls -t "$backup_dir"/*.backup | head -n 1)
+        local last_backup=$(ls -t "$backup_dir"/*.backup 2>/dev/null | head -n 1)
         
-        if [[ -n "$last_backup" ]]; then
-            # Restore configuration from backup
+        if [ -n "$last_backup" ]; then
+            # Restore configuration from backup using more compatible grep patterns
             local old_plex_enabled=$(grep "^PLEX_ENABLED=" "$last_backup" | cut -d'=' -f2)
             local old_plex_url=$(grep "^PLEX_URL=" "$last_backup" | cut -d'"' -f2)
             local old_plex_token=$(grep "^PLEX_TOKEN=" "$last_backup" | cut -d'"' -f2)
@@ -146,24 +212,28 @@ update_script() {
             local old_jellyfin_url=$(grep "^JELLYFIN_URL=" "$last_backup" | cut -d'"' -f2)
             local old_jellyfin_api_key=$(grep "^JELLYFIN_API_KEY=" "$last_backup" | cut -d'"' -f2)
             
-            if [[ -n "$old_plex_enabled" ]]; then
-                sed -i "s|^PLEX_ENABLED=.*|PLEX_ENABLED=$old_plex_enabled|" "$script_name"
+            # Use more compatible sed syntax for macOS
+            if [ -n "$old_plex_enabled" ]; then
+                sed -i.bak "s|^PLEX_ENABLED=.*|PLEX_ENABLED=$old_plex_enabled|" "$script_name"
             fi
-            if [[ -n "$old_plex_url" ]]; then
-                sed -i "s|^PLEX_URL=.*|PLEX_URL=\"$old_plex_url\"|" "$script_name"
+            if [ -n "$old_plex_url" ]; then
+                sed -i.bak "s|^PLEX_URL=.*|PLEX_URL=\"$old_plex_url\"|" "$script_name"
             fi
-            if [[ -n "$old_plex_token" ]]; then
-                sed -i "s|^PLEX_TOKEN=.*|PLEX_TOKEN=\"$old_plex_token\"|" "$script_name"
+            if [ -n "$old_plex_token" ]; then
+                sed -i.bak "s|^PLEX_TOKEN=.*|PLEX_TOKEN=\"$old_plex_token\"|" "$script_name"
             fi
-            if [[ -n "$old_jellyfin_enabled" ]]; then
-                sed -i "s|^JELLYFIN_ENABLED=.*|JELLYFIN_ENABLED=$old_jellyfin_enabled|" "$script_name"
+            if [ -n "$old_jellyfin_enabled" ]; then
+                sed -i.bak "s|^JELLYFIN_ENABLED=.*|JELLYFIN_ENABLED=$old_jellyfin_enabled|" "$script_name"
             fi
-            if [[ -n "$old_jellyfin_url" ]]; then
-                sed -i "s|^JELLYFIN_URL=.*|JELLYFIN_URL=\"$old_jellyfin_url\"|" "$script_name"
+            if [ -n "$old_jellyfin_url" ]; then
+                sed -i.bak "s|^JELLYFIN_URL=.*|JELLYFIN_URL=\"$old_jellyfin_url\"|" "$script_name"
             fi
-            if [[ -n "$old_jellyfin_api_key" ]]; then
-                sed -i "s|^JELLYFIN_API_KEY=.*|JELLYFIN_API_KEY=\"$old_jellyfin_api_key\"|" "$script_name"
+            if [ -n "$old_jellyfin_api_key" ]; then
+                sed -i.bak "s|^JELLYFIN_API_KEY=.*|JELLYFIN_API_KEY=\"$old_jellyfin_api_key\"|" "$script_name"
             fi
+            
+            # Clean up backup files created by sed on macOS
+            rm -f "$script_name.bak"
         fi
         
         chmod +x "$script_name"
@@ -195,64 +265,6 @@ check_dependencies() {
     fi
 }
 
-check_terminal_support() {
-    if command -v tput >/dev/null 2>&1; then
-        if tput setaf 1 >/dev/null 2>&1; then
-            # Terminal supports colors
-            blue_color=$(tput setaf 4)
-            orange_color=$(tput setaf 3)  # Using yellow as fallback for orange
-            green_color=$(tput setaf 2)
-        else
-            blue_color=""
-            orange_color=""
-            green_color=""
-        fi
-        
-        # Check for italic support
-        if tput sitm >/dev/null 2>&1; then
-            italic_start=$(tput sitm)
-            italic_end=$(tput ritm)
-        else
-            # Fallback to dim if italic not supported
-            if tput dim >/dev/null 2>&1; then
-                italic_start=$(tput dim)
-                italic_end=$(tput sgr0)
-            else
-                italic_start=""
-                italic_end=""
-            fi
-        fi
-        reset=$(tput sgr0)
-    else
-        # No tput support, use basic ANSI codes
-        blue_color="\e[34m"
-        orange_color="\e[33m"
-        green_color="\e[32m"
-        italic_start="\e[3m"
-        italic_end="\e[23m"
-        reset="\e[0m"
-    fi
-}
-
-safe_echo() {
-    if [[ "${OSTYPE}" == "darwin"* ]]; then
-        # macOS
-        /bin/echo "$@"
-    else
-        # Linux and others
-        echo -e "$@"
-    fi
-}
-
-urlencode() {
-    local string="$1"
-    echo -n "$string" | curl -Gso /dev/null -w %{url_effective} --data-urlencode @- "" | cut -c 3-
-}
-
-decode_html_entities() {
-    echo "$1" | sed 's/&amp;/\&/g; s/&lt;/</g; s/&gt;/>/g; s/&quot;/"/g; s/&#39;/'"'"'/g' | sed 's/&$//'
-}
-
 check_plex() {
     if [ "$PLEX_ENABLED" = true ] && [ -n "$PLEX_TOKEN" ]; then
         local plex_xml
@@ -275,21 +287,24 @@ check_plex() {
                     -n \
                     -v "concat(
                         '    Media Info: ',
-                        substring('Live TV', 1, number(not(number(@duration) > 0)) * 7),
-                        substring(concat(format-number(@duration div 1000 div 60, '0'), ' min'), 1, number(@duration > 0) * 20)
+                        substring(
+                            concat(
+                                substring('Live TV', 1, number(not(number(@duration) > 0)) * 7),
+                                substring(concat(format-number(@duration div 1000 div 60, '0'), ' min'), 1, number(@duration > 0) * 20)
+                            ),
+                            1
+                        )
                     )" \
                     -n \
                     -m ".//Media" \
                     -v "concat(
                         '    Media Info: Container: ', 
-                        substring(@container, 1, number(string-length(@container) > 0) * 50),
-                        substring('Unknown', 1, number(string-length(@container) = 0) * 7),
-                        ', Audio Channels: ', 
-                        substring(string(@audioChannels), 1, number(string-length(@audioChannels) > 0) * 10),
-                        substring('Unknown', 1, number(string-length(@audioChannels) = 0) * 7),
+                        @container,
+                        ', Audio Channels: ',
+                        @audioChannels,
                         ', Resolution: ',
-                        substring(concat(@videoResolution, 'p'), 1, number(string-length(@videoResolution) > 0) * 10),
-                        substring('Unknown', 1, number(string-length(@videoResolution) = 0) * 7)
+                        @videoResolution,
+                        'p'
                     )" \
                     -n \
                     -n \
@@ -299,9 +314,14 @@ check_plex() {
                         '    Transcoding: ',
                         'Video: ', @videoDecision, 
                         ', Audio: ', @audioDecision,
-                        ', Progress: ', 
-                        substring('Live', 1, number(not(number(@progress) > -1)) * 4),
-                        substring(concat(format-number(@progress, '0.00'), '%'), 1, number(@progress > -1) * 10)
+                        ', Progress: ',
+                        substring(
+                            concat(
+                                substring('Live', 1, number(not(number(@progress) > -1)) * 4),
+                                substring(concat(format-number(@progress, '0.00'), '%'), 1, number(@progress > -1) * 10)
+                            ),
+                            1
+                        )
                     )" \
                     -n \
                     -b \
@@ -320,7 +340,7 @@ check_plex() {
                         '    Audio Stream: ',
                         'Codec: ', @codec,
                         ', Channels: ', @channels,
-                        ', Language: ', concat(@language, substring('Unknown', 1, 1 div string-length(@language))),
+                        ', Language: ', @language,
                         ', Bitrate: ', @bitrate div 1000, ' Mbps'
                     )" \
                     -n \
@@ -331,7 +351,7 @@ check_plex() {
                         @product, ' on ', @platform,
                         ', State: ', @state,
                         ', Stream Origin: ', 
-                        substring('RemoteLocal', 1 + (@local = 1) * 6, 6)
+                        substring('RemoteLocal', 1 + number(@local = '1') * 6, 6)
                     )" \
                     -n \
                     -b)
@@ -359,16 +379,19 @@ check_plex() {
                     if [ -n "$line" ]; then
                         decoded_line=$(decode_html_entities "$line")
                         if [[ "$decoded_line" != *".................."* || "$decoded_line" =~ [^\.] ]]; then
-                            if [[ "$decoded_line" == *"Transcoding:"* || \
-                                  "$decoded_line" == *"Stream:"* || \
-                                  "$decoded_line" == *"Media Info:"* || \
-                                  "$decoded_line" == *"Source:"* || \
-                                  "$decoded_line" == *"File:"* || \
-                                  "$decoded_line" == *"Player:"* ]]; then
-                                safe_echo "${blue_color}${decoded_line}${reset}"
-                            else
-                                safe_echo "${green_color}${decoded_line}${reset}"
-                            fi
+                            case "$decoded_line" in
+                                *"Transcoding:"* | \
+                                *"Stream:"* | \
+                                *"Media Info:"* | \
+                                *"Source:"* | \
+                                *"File:"* | \
+                                *"Player:"*)
+                                    safe_echo "${blue_color}${decoded_line}${reset}"
+                                    ;;
+                                *)
+                                    safe_echo "${green_color}${decoded_line}${reset}"
+                                    ;;
+                            esac
                         fi
                     fi
                 done <<< "$currently_playing"
@@ -401,30 +424,30 @@ check_jellyfin() {
                         .NowPlayingItem.Name
                     end + " ..................." + .UserName) + 
                     "\n    Media Info: " + 
-                    (if .NowPlayingItem.RunTimeTicks then
-                        (if .NowPlayingItem.RunTimeTicks > 0 then
+                    if .NowPlayingItem.RunTimeTicks then
+                        if .NowPlayingItem.RunTimeTicks > 0 then
                             ((.NowPlayingItem.RunTimeTicks/10000000/60 | floor | tostring) + " min")
                         else
                             "Live TV"
-                        end)
+                        end
                     else
                         "Live TV"
-                    end) +
+                    end +
                     "\n    Container: " + (.NowPlayingItem.Container // "Unknown") +
                     ", Resolution: " + ((.NowPlayingItem.Width | tostring) + "x" + (.NowPlayingItem.Height | tostring) // "Unknown") +
-                    (if .NowPlayingItem.MediaStreams then
+                    if .NowPlayingItem.MediaStreams then
                         "\n    Audio Info: " + 
-                        (if (.NowPlayingItem.MediaStreams | map(select(.Type == "Audio")) | length) > 0 then
+                        if (.NowPlayingItem.MediaStreams | map(select(.Type == "Audio")) | length) > 0 then
                             (.NowPlayingItem.MediaStreams | map(select(.Type == "Audio"))[0] | 
                             "Channels: " + (.Channels | tostring) + 
                             ", Codec: " + .Codec +
                             ", Language: " + (.Language // "Unknown"))
                         else
                             "No audio stream found"
-                        end)
+                        end
                     else
                         "\n    Audio Info: Unknown"
-                    end) +
+                    end +
                     "\n    Player Info: " + (.Client // "Unknown") + " on " + (.DeviceName // "Unknown") +
                     "\n    Playback: " + .PlayState.PlayMethod')
             else
@@ -445,31 +468,35 @@ check_jellyfin() {
             
             if [ -n "$currently_playing" ]; then
                 if [ "$VERBOSE" = false ]; then
-                    currently_playing=$(printf '%s' "$currently_playing" | sed 's/\bTranscode\b/•/')
-                    currently_playing=$(printf '%s' "$currently_playing" | sed 's/\bDirectPlay\b//')
+                    # Use sed with basic regular expressions for better compatibility
+                    currently_playing=$(printf '%s' "$currently_playing" | sed 's/Transcode/•/g')
+                    currently_playing=$(printf '%s' "$currently_playing" | sed 's/DirectPlay//g')
                 fi
                 
                 safe_echo ""
                 safe_echo "Now Playing on ${server_name} (${italic_start}${blue_color}Jellyfin${reset}):${reset}"
                 while IFS= read -r line; do
                     if [ -n "$line" ]; then
-                        if [[ "$line" == *"Transcoding:"* || \
-                              "$line" == *"Playback:"* || \
-                              "$line" == *"Video Stream:"* || \
-                              "$line" == *"Audio Stream:"* || \
-                              "$line" == *"Media Info:"* || \
-                              "$line" == *"Source:"* || \
-                              "$line" == *"Container:"* || \
-                              "$line" == *"Direct Playing:"* || \
-                              "$line" == *"Player Info:"* || \
-                              "$line" == *"Progress:"* || \
-                              "$line" == *"Hardware Acceleration:"* || \
-                              "$line" == *"Audio Info:"* || \
-                              "$line" == *"Subtitles:"* ]]; then
-                            safe_echo "${blue_color}${line}${reset}"
-                        else
-                            safe_echo "${green_color}${line}${reset}"
-                        fi
+                        case "$line" in
+                            *"Transcoding:"* | \
+                            *"Playback:"* | \
+                            *"Video Stream:"* | \
+                            *"Audio Stream:"* | \
+                            *"Media Info:"* | \
+                            *"Source:"* | \
+                            *"Container:"* | \
+                            *"Direct Playing:"* | \
+                            *"Player Info:"* | \
+                            *"Progress:"* | \
+                            *"Hardware Acceleration:"* | \
+                            *"Audio Info:"* | \
+                            *"Subtitles:"*)
+                                safe_echo "${blue_color}${line}${reset}"
+                                ;;
+                            *)
+                                safe_echo "${green_color}${line}${reset}"
+                                ;;
+                        esac
                     fi
                 done <<< "$currently_playing"
             fi
