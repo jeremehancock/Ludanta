@@ -14,9 +14,9 @@ Ludanta is a lightweight command-line tool that displays what's currently playin
 
 ## Screenshots
 
-![Ludanta](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/ludanta.png "Ludanta")
+![Ludanta](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/main.png "Ludanta")
 
-![Ludanta Detailed](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/ludanta-detailed-clean	.png "Ludanta Detailed")
+![Ludanta Detailed](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/detailed-clean.png "Ludanta Detailed")
 
 ## Requirements
 - curl
@@ -106,6 +106,9 @@ To update:
 ```bash
 ./ludanta.sh -u
 ```
+
+## Note
+It has been reported that Ludanta works for Emby as well. I do not currently run an Emby server so I am unable to fully verify the compatibility with Emby.
 
 ## License
 [MIT License](LICENSE)
