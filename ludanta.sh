@@ -46,7 +46,7 @@ JELLYFIN_API_KEY=""
 ################################### DO NOT EDIT ANYTHING BELOW #########################################
 ########################################################################################################
 
-VERSION="1.0.8"
+VERSION="1.0.9"
 VERBOSE=false
 
 get_plex_server_name() {
@@ -265,6 +265,9 @@ check_dependencies() {
     fi
 }
 
+# Here's the modified check_plex function. The main change is in the xmlstarlet formatting string
+# to add additional newlines between sessions.
+
 check_plex() {
     if [ "$PLEX_ENABLED" = true ] && [ -n "$PLEX_TOKEN" ]; then
         local plex_xml
@@ -275,6 +278,7 @@ check_plex() {
             server_name=$(get_plex_server_name)
             local currently_playing
             if [ "$VERBOSE" = true ]; then
+                # Verbose output remains the same...
                 currently_playing=$(printf '%s' "$plex_xml" | LC_ALL=C xmlstarlet sel -t \
                     -m "//MediaContainer/Video | //MediaContainer/Track" \
                     -v "concat(
@@ -354,8 +358,10 @@ check_plex() {
                         substring('RemoteLocal', 1 + number(@local = '1') * 6, 6)
                     )" \
                     -n \
+                    -n \
                     -b)
             else
+                # Modified non-verbose output to properly handle both transcodes and line breaks
                 currently_playing=$(printf '%s' "$plex_xml" | LC_ALL=C xmlstarlet sel -t \
                     -m "//MediaContainer/Video | //MediaContainer/Track" \
                     -v "concat(
@@ -365,11 +371,16 @@ check_plex() {
                         '...................',
                         ./User/@title
                     )" \
-                    -m ".//TranscodeSession" \
-                    -i "@videoDecision='transcode' or @audioDecision='transcode'" \
+                    -i ".//TranscodeSession[@videoDecision='transcode' or @audioDecision='transcode']" \
                         -o " •" \
                     -b \
                     -n)
+                
+                # Clean up the output to ensure proper spacing between entries
+                currently_playing=$(echo "$currently_playing" | sed '/^[[:space:]]*$/d' | sed 'a\\' | sed '$d')
+                
+                # Add extra line breaks between entries
+                currently_playing=$(echo "$currently_playing" | sed 's/\([^[:space:]]\)\n\([^[:space:]]\)/\1\n\n\2/g')
             fi
             
             if [ -n "$currently_playing" ]; then
