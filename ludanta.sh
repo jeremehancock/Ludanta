@@ -46,8 +46,32 @@ JELLYFIN_API_KEY=""
 ################################### DO NOT EDIT ANYTHING BELOW #########################################
 ########################################################################################################
 
-VERSION="1.0.6"
+VERSION="1.0.7"
 VERBOSE=false
+
+get_plex_server_name() {
+    if [ "$PLEX_ENABLED" = true ] && [ -n "$PLEX_TOKEN" ]; then
+        local server_info
+        server_info=$(curl -s "${PLEX_URL}/servers?X-Plex-Token=${PLEX_TOKEN}")
+        if [ -n "$server_info" ]; then
+            echo "$server_info" | xmlstarlet sel -t -v "/MediaContainer/Server/@name" 2>/dev/null || echo "Plex Server"
+        else
+            echo "Plex Server"
+        fi
+    fi
+}
+
+get_jellyfin_server_name() {
+    if [ "$JELLYFIN_ENABLED" = true ] && [ -n "$JELLYFIN_API_KEY" ]; then
+        local server_info
+        server_info=$(curl -s "${JELLYFIN_URL}/System/Info?api_key=${JELLYFIN_API_KEY}")
+        if [ -n "$server_info" ]; then
+            echo "$server_info" | jq -r '.ServerName // "Jellyfin Server"'
+        else
+            echo "Jellyfin Server"
+        fi
+    fi
+}
 
 show_version() {
     echo "Ludanta v${VERSION}"
@@ -235,6 +259,8 @@ check_plex() {
         plex_xml=$(curl -s "${PLEX_URL}/status/sessions?X-Plex-Token=${PLEX_TOKEN}")
         
         if [ -n "$plex_xml" ]; then
+            local server_name
+            server_name=$(get_plex_server_name)
             local currently_playing
             if [ "$VERBOSE" = true ]; then
                 currently_playing=$(printf '%s' "$plex_xml" | LC_ALL=C xmlstarlet sel -t \
@@ -328,7 +354,7 @@ check_plex() {
             
             if [ -n "$currently_playing" ]; then
                 safe_echo ""
-                safe_echo "Now Playing on ${HOSTNAME^} (${italic_start}${orange_color}Plex${reset}):${reset}"
+                safe_echo "Now Playing on ${server_name} (${italic_start}${orange_color}Plex${reset}):${reset}"
                 while IFS= read -r line; do
                     if [ -n "$line" ]; then
                         decoded_line=$(decode_html_entities "$line")
@@ -357,6 +383,8 @@ check_jellyfin() {
         jellyfin_json=$(curl -s "${JELLYFIN_URL}/Sessions?api_key=${JELLYFIN_API_KEY}")
         
         if [ -n "$jellyfin_json" ]; then
+            local server_name
+            server_name=$(get_jellyfin_server_name)
             local currently_playing
             if [ "$VERBOSE" = true ]; then
                 currently_playing=$(echo "$jellyfin_json" | \
@@ -422,7 +450,7 @@ check_jellyfin() {
                 fi
                 
                 safe_echo ""
-                safe_echo "Now Playing on ${HOSTNAME^} (${italic_start}${blue_color}Jellyfin${reset}):${reset}"
+                safe_echo "Now Playing on ${server_name} (${italic_start}${blue_color}Jellyfin${reset}):${reset}"
                 while IFS= read -r line; do
                     if [ -n "$line" ]; then
                         if [[ "$line" == *"Transcoding:"* || \

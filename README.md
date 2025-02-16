@@ -16,7 +16,7 @@ Ludanta is a lightweight command-line tool that displays what's currently playin
 
 ![Ludanta](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/ludanta.png "Ludanta")
 
-![Ludanta Detailed](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/ludanta-detailed-clean.png "Ludanta Detailed")
+![Ludanta Detailed](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/ludanta-detailed-clean	.png "Ludanta Detailed")
 
 ## Requirements
 - curl
