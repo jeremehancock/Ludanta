@@ -108,7 +108,10 @@ To update:
 ```
 
 ## Note
-It has been reported that Ludanta works for Emby as well. I do not currently run an Emby server so I am unable to fully verify the compatibility with Emby.
+
+Ludanta needs to be on the same network as your Plex Media Server to run. 
+
+If you want to connect remotely you will need to use something like [Tailscale](https://tailscale.com) to ensure that Ludanta can communicate with your Plex Media Server.
 
 ## License
 [MIT License](LICENSE)
