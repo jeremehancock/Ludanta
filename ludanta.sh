@@ -46,7 +46,7 @@ JELLYFIN_API_KEY=""
 ################################### DO NOT EDIT ANYTHING BELOW #########################################
 ########################################################################################################
 
-VERSION="1.0.9"
+VERSION="1.1.0"
 VERBOSE=false
 
 get_plex_server_name() {
@@ -265,9 +265,6 @@ check_dependencies() {
     fi
 }
 
-# Here's the modified check_plex function. The main change is in the xmlstarlet formatting string
-# to add additional newlines between sessions.
-
 check_plex() {
     if [ "$PLEX_ENABLED" = true ] && [ -n "$PLEX_TOKEN" ]; then
         local plex_xml
@@ -278,7 +275,6 @@ check_plex() {
             server_name=$(get_plex_server_name)
             local currently_playing
             if [ "$VERBOSE" = true ]; then
-                # Verbose output remains the same...
                 currently_playing=$(printf '%s' "$plex_xml" | LC_ALL=C xmlstarlet sel -t \
                     -m "//MediaContainer/Video | //MediaContainer/Track" \
                     -v "concat(
@@ -361,7 +357,6 @@ check_plex() {
                     -n \
                     -b)
             else
-                # Modified non-verbose output to properly handle both transcodes and line breaks
                 currently_playing=$(printf '%s' "$plex_xml" | LC_ALL=C xmlstarlet sel -t \
                     -m "//MediaContainer/Video | //MediaContainer/Track" \
                     -v "concat(
@@ -376,16 +371,15 @@ check_plex() {
                     -b \
                     -n)
                 
-                # Clean up the output to ensure proper spacing between entries
                 currently_playing=$(echo "$currently_playing" | sed '/^[[:space:]]*$/d' | sed 'a\\' | sed '$d')
-                
-                # Add extra line breaks between entries
                 currently_playing=$(echo "$currently_playing" | sed 's/\([^[:space:]]\)\n\([^[:space:]]\)/\1\n\n\2/g')
             fi
             
-            if [ -n "$currently_playing" ]; then
-                safe_echo ""
-                safe_echo "Now Playing on ${server_name} (${italic_start}${orange_color}Plex${reset}):${reset}"
+            # Display server header regardless of playback status
+            safe_echo ""
+            safe_echo "Now Playing on ${server_name} (${italic_start}${orange_color}Plex${reset}):${reset}"
+            
+            if [ -n "$currently_playing" ] && [ "$(echo "$currently_playing" | tr -d '[:space:]')" != "" ]; then
                 while IFS= read -r line; do
                     if [ -n "$line" ]; then
                         decoded_line=$(decode_html_entities "$line")
@@ -406,6 +400,8 @@ check_plex() {
                         fi
                     fi
                 done <<< "$currently_playing"
+            else
+                safe_echo "${green_color}${italic_start}Nothing playing${reset}"
             fi
         fi
     fi
@@ -477,15 +473,16 @@ check_jellyfin() {
                     end + " ...................\(.UserName) \(.PlayState.PlayMethod)"')
             fi
             
-            if [ -n "$currently_playing" ]; then
+            # Display server header regardless of playback status
+            safe_echo ""
+            safe_echo "Now Playing on ${server_name} (${italic_start}${blue_color}Jellyfin${reset}):${reset}"
+            
+            if [ -n "$currently_playing" ] && [ "$(echo "$currently_playing" | tr -d '[:space:]')" != "" ]; then
                 if [ "$VERBOSE" = false ]; then
-                    # Use sed with basic regular expressions for better compatibility
                     currently_playing=$(printf '%s' "$currently_playing" | sed 's/Transcode/•/g')
                     currently_playing=$(printf '%s' "$currently_playing" | sed 's/DirectPlay//g')
                 fi
                 
-                safe_echo ""
-                safe_echo "Now Playing on ${server_name} (${italic_start}${blue_color}Jellyfin${reset}):${reset}"
                 while IFS= read -r line; do
                     if [ -n "$line" ]; then
                         case "$line" in
@@ -510,6 +507,8 @@ check_jellyfin() {
                         esac
                     fi
                 done <<< "$currently_playing"
+            else
+                safe_echo "${green_color}${italic_start}Nothing playing${reset}"
             fi
         fi
     fi
@@ -532,7 +531,11 @@ main() {
                 VERBOSE=true
                 ;;
             \? )
-                echo "Invalid Option: -$OPTARG" 1>&2
+                echo "Usage: $0 [-v] [-u] [-d]"
+                echo "Options:"
+                echo "  -v    Show version"
+                echo "  -u    Update script"
+                echo "  -d    Show detailed information"
                 exit 1
                 ;;
         esac
