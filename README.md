@@ -12,10 +12,9 @@ Ludanta is a lightweight command-line tool that displays what's currently playin
 - Built-in version checking and update mechanism
 - Automatic configuration backup during updates
 
-### If you find this tool useful, consider helping me buy more hard drives!
+## Support this project
 
-[![](https://jereme.dev/images/paypal-donate-button.png)](https://www.paypal.com/ncp/payment/7WSTDKQ4PCNXQ)
-
+[![Donate](https://raw.githubusercontent.com/jeremehancock/Posteria/main/images/donate-button.png)](https://www.buymeacoffee.com/jereme)
 ## Screenshots
 
 ![Ludanta](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/main.png "Ludanta")
