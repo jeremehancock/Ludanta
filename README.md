@@ -14,7 +14,8 @@ Ludanta is a lightweight command-line tool that displays what's currently playin
 
 ## Support this project
 
-[![Donate](https://raw.githubusercontent.com/jeremehancock/Posteria/main/images/donate-button.png)](https://www.buymeacoffee.com/jereme)
+[![Donate](https://raw.githubusercontent.com/jeremehancock/Posteria/main/images/donate-button.png)](https://www.buymeacoffee.com/jeremehancock)
+
 ## Screenshots
 
 ![Ludanta](https://raw.githubusercontent.com/jeremehancock/Ludanta/main/screenshots/main.png "Ludanta")
