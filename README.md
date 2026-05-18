@@ -121,6 +121,6 @@ If you want to connect remotely you will need to use something like [Tailscale](
 
 [MIT License](LICENSE)
 
-## AI Assistance Disclosure
+## AI Disclosure
 
 This project was created with the help of AI.
