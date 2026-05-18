@@ -118,7 +118,9 @@ Ludanta needs to be on the same network as your Plex Media Server to run.
 If you want to connect remotely you will need to use something like [Tailscale](https://tailscale.com) to ensure that Ludanta can communicate with your Plex Media Server.
 
 ## License
+
 [MIT License](LICENSE)
 
 ## AI Assistance Disclosure
-This tool was developed with assistance from AI language models.
+
+This project was created with the help of AI.
