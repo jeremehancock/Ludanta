@@ -46,7 +46,7 @@ JELLYFIN_API_KEY=""
 ################################### DO NOT EDIT ANYTHING BELOW #########################################
 ########################################################################################################
 
-VERSION="1.1.0"
+VERSION="1.1.1"
 VERBOSE=false
 
 get_plex_server_name() {
@@ -61,10 +61,16 @@ get_plex_server_name() {
     fi
 }
 
+# Query the Jellyfin API using the Authorization header. Newer Jellyfin
+# releases reject the legacy "api_key" query parameter.
+jellyfin_get() {
+    curl -s -H "Authorization: MediaBrowser Token=\"${JELLYFIN_API_KEY}\"" "${JELLYFIN_URL}$1"
+}
+
 get_jellyfin_server_name() {
     if [ "$JELLYFIN_ENABLED" = true ] && [ -n "$JELLYFIN_API_KEY" ]; then
         local server_info
-        server_info=$(curl -s "${JELLYFIN_URL}/System/Info?api_key=${JELLYFIN_API_KEY}")
+        server_info=$(jellyfin_get "/System/Info")
         if [ -n "$server_info" ]; then
             echo "$server_info" | jq -r '.ServerName // "Jellyfin Server"'
         else
@@ -410,7 +416,7 @@ check_plex() {
 check_jellyfin() {
     if [ "$JELLYFIN_ENABLED" = true ] && [ -n "$JELLYFIN_API_KEY" ]; then
         local jellyfin_json
-        jellyfin_json=$(curl -s "${JELLYFIN_URL}/Sessions?api_key=${JELLYFIN_API_KEY}")
+        jellyfin_json=$(jellyfin_get "/Sessions")
         
         if [ -n "$jellyfin_json" ]; then
             local server_name
