@@ -154,7 +154,22 @@ To update:
 ./ludanta.sh -u
 ```
 
-Backups made by versions before 1.2.0 may contain your Plex token or Jellyfin API key. If you have a `backups` folder from an older version, you can delete those backups or keep the folder private.
+### Upgrading from a version before 1.2.0
+Versions before 1.2.0 kept your Plex token and Jellyfin API key inside the script, and their updater copied them into every backup it made. Instead of using `-u`, do a fresh install once:
+
+1. Open your current `ludanta.sh` and copy down your settings (URLs, Plex token, Jellyfin API key).
+2. Put them in a settings file, as shown in [Option 1: A settings file](#option-1-a-settings-file-recommended).
+3. In your Ludanta folder, replace the script with the latest version:
+   ```bash
+   curl -o ludanta.sh https://raw.githubusercontent.com/jeremehancock/Ludanta/main/ludanta.sh && chmod +x ludanta.sh
+   ```
+4. Delete the old backups, since they contain your token and API key:
+   ```bash
+   rm -r backups
+   ```
+5. Run `./ludanta.sh` to check that it shows your servers.
+
+After that, `./ludanta.sh -u` keeps you up to date, and your settings file is never touched.
 
 ## Note
 
