@@ -32,22 +32,41 @@
 ######################################### Configuration ################################################
 ########################################################################################################
 
+# Recommended: keep your settings in a settings file instead of typing them in below.
+# That keeps your Plex token and Jellyfin API key out of this script, out of the
+# backups made when updating, and out of anything you copy or share.
+# Ludanta reads ~/.config/ludanta/config if it exists, or the file named in the
+# LUDANTA_CONFIG environment variable. Environment variables with the same names
+# as the settings below work too. See the README for examples.
+LUDANTA_CONFIG="${LUDANTA_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/ludanta/config}"
+[ -f "$LUDANTA_CONFIG" ] && . "$LUDANTA_CONFIG"
+
+# To type a setting in here instead, replace the whole value, for example:
+#   PLEX_TOKEN="your-plex-token"
+# A value typed in here wins over the settings file and environment variables.
+
 # Plex Configuration
-PLEX_ENABLED=true                               # Set to false to disable Plex checking
-PLEX_URL="http://localhost:32400"
-PLEX_TOKEN=""
+PLEX_ENABLED="${PLEX_ENABLED:-true}"            # Set to false to disable Plex checking
+PLEX_URL="${PLEX_URL:-http://localhost:32400}"
+PLEX_TOKEN="${PLEX_TOKEN:-}"
 
 # Jellyfin Configuration
-JELLYFIN_ENABLED=true                           # Set to false to disable Jellyfin checking
-JELLYFIN_URL="http://localhost:8096"
-JELLYFIN_API_KEY=""
+JELLYFIN_ENABLED="${JELLYFIN_ENABLED:-true}"    # Set to false to disable Jellyfin checking
+JELLYFIN_URL="${JELLYFIN_URL:-http://localhost:8096}"
+JELLYFIN_API_KEY="${JELLYFIN_API_KEY:-}"
 
 ########################################################################################################
 ################################### DO NOT EDIT ANYTHING BELOW #########################################
 ########################################################################################################
 
-VERSION="1.1.1"
+VERSION="1.2.0"
 VERBOSE=false
+UPDATE_URL="https://raw.githubusercontent.com/jeremehancock/Ludanta/main/ludanta.sh"
+
+# Settings that can be typed into this script. Updates carry them over.
+SETTING_NAMES="PLEX_ENABLED PLEX_URL PLEX_TOKEN JELLYFIN_ENABLED JELLYFIN_URL JELLYFIN_API_KEY"
+# The ones that are secret. Updates leave them out of backups.
+SECRET_SETTING_NAMES="PLEX_TOKEN JELLYFIN_API_KEY"
 
 get_plex_server_name() {
     if [ "$PLEX_ENABLED" = true ] && [ -n "$PLEX_TOKEN" ]; then
@@ -150,8 +169,8 @@ check_version() {
 
     # Use grep -a to treat file as text for macOS compatibility
     local remote_version
-    remote_version=$(curl -s -H "Cache-Control: no-cache" https://raw.githubusercontent.com/jeremehancock/Ludanta/refs/heads/main/ludanta.sh | grep -a "^VERSION=" | cut -d'"' -f2)
-    
+    remote_version=$(curl -s -H "Cache-Control: no-cache" "$UPDATE_URL" | grep -a "^VERSION=" | cut -d'"' -f2)
+
     if [ -z "$remote_version" ]; then
         echo "Error: Could not fetch remote version"
         return 1
@@ -178,80 +197,109 @@ update_script() {
 
     # Use grep -a to treat file as text for macOS compatibility
     local remote_version
-    remote_version=$(curl -s -H "Cache-Control: no-cache" https://raw.githubusercontent.com/jeremehancock/Ludanta/refs/heads/main/ludanta.sh | grep -a "^VERSION=" | cut -d'"' -f2)
-    
+    remote_version=$(curl -s -H "Cache-Control: no-cache" "$UPDATE_URL" | grep -a "^VERSION=" | cut -d'"' -f2)
+
     if [ -z "$remote_version" ]; then
         echo "Error: Could not fetch remote version"
         return 1
     fi
 
-    if [ "$remote_version" = "$VERSION" ]; then
+    # Only update to a newer version, never an older one
+    if [ "$remote_version" = "$VERSION" ] || \
+       [ "$(printf '%s\n' "$remote_version" "$VERSION" | sort -V | tail -n1)" != "$remote_version" ]; then
         echo "No updates available. You are running the latest version (v${VERSION})."
         return 0
     fi
 
     printf "Update available: v%s → v%s\n" "$VERSION" "$remote_version"
-    
-    local backup_dir="backups"
-    mkdir -p "$backup_dir"
 
-    local script_name=$(basename "$0")
-    local backup_file="${backup_dir}/${script_name}.v${VERSION}.backup"
-    cp "$0" "$backup_file"
-    
     printf "Do you want to proceed with the update? [y/N] "
     read -r response
     if [[ ! "$response" =~ ^[Yy]$ ]]; then
         echo "Update cancelled."
         return 0
     fi
-    
-    if curl -H "Cache-Control: no-cache" -o "$script_name" -L https://raw.githubusercontent.com/jeremehancock/Ludanta/main/ludanta.sh; then
-        local last_backup=$(ls -t "$backup_dir"/*.backup 2>/dev/null | head -n 1)
-        
-        if [ -n "$last_backup" ]; then
-            # Restore configuration from backup using more compatible grep patterns
-            local old_plex_enabled=$(grep "^PLEX_ENABLED=" "$last_backup" | cut -d'=' -f2)
-            local old_plex_url=$(grep "^PLEX_URL=" "$last_backup" | cut -d'"' -f2)
-            local old_plex_token=$(grep "^PLEX_TOKEN=" "$last_backup" | cut -d'"' -f2)
-            local old_jellyfin_enabled=$(grep "^JELLYFIN_ENABLED=" "$last_backup" | cut -d'=' -f2)
-            local old_jellyfin_url=$(grep "^JELLYFIN_URL=" "$last_backup" | cut -d'"' -f2)
-            local old_jellyfin_api_key=$(grep "^JELLYFIN_API_KEY=" "$last_backup" | cut -d'"' -f2)
-            
-            # Use more compatible sed syntax for macOS
-            if [ -n "$old_plex_enabled" ]; then
-                sed -i.bak "s|^PLEX_ENABLED=.*|PLEX_ENABLED=$old_plex_enabled|" "$script_name"
-            fi
-            if [ -n "$old_plex_url" ]; then
-                sed -i.bak "s|^PLEX_URL=.*|PLEX_URL=\"$old_plex_url\"|" "$script_name"
-            fi
-            if [ -n "$old_plex_token" ]; then
-                sed -i.bak "s|^PLEX_TOKEN=.*|PLEX_TOKEN=\"$old_plex_token\"|" "$script_name"
-            fi
-            if [ -n "$old_jellyfin_enabled" ]; then
-                sed -i.bak "s|^JELLYFIN_ENABLED=.*|JELLYFIN_ENABLED=$old_jellyfin_enabled|" "$script_name"
-            fi
-            if [ -n "$old_jellyfin_url" ]; then
-                sed -i.bak "s|^JELLYFIN_URL=.*|JELLYFIN_URL=\"$old_jellyfin_url\"|" "$script_name"
-            fi
-            if [ -n "$old_jellyfin_api_key" ]; then
-                sed -i.bak "s|^JELLYFIN_API_KEY=.*|JELLYFIN_API_KEY=\"$old_jellyfin_api_key\"|" "$script_name"
-            fi
-            
-            # Clean up backup files created by sed on macOS
-            rm -f "$script_name.bak"
-        fi
-        
-        chmod +x "$script_name"
-        echo "Successfully updated script"
-        echo "Previous version backed up to $backup_file"
-        
-        exit 0
-    else
-        echo "Update failed"
-        mv "$backup_file" "$script_name"
+
+    local script_path="$0"
+    local script_dir
+    script_dir=$(cd "$(dirname "$script_path")" && pwd)
+    local backup_dir="${script_dir}/backups"
+    local backup_file="${backup_dir}/$(basename "$script_path").v${VERSION}.backup"
+    local new_file="${script_path}.new.$$"
+
+    # Download to a separate file first, so a failed download never touches the working script
+    # and only accept something that really is a complete Ludanta script
+    if ! curl -s -f -H "Cache-Control: no-cache" -o "$new_file" -L "$UPDATE_URL" || \
+       [ "$(head -n 1 "$new_file")" != "#!/bin/bash" ] || \
+       ! grep -aq "^VERSION=\"${remote_version}\"" "$new_file" || \
+       ! grep -aq "^main \"\$@\"" "$new_file" || \
+       ! bash -n "$new_file" 2>/dev/null; then
+        rm -f "$new_file"
+        echo "Update failed: could not download the new version. Nothing was changed."
         return 1
     fi
+
+    # Carry over any settings typed into this script
+    local name value carried_secret=false
+    for name in $SETTING_NAMES; do
+        value=$(typed_in_value "$script_path" "$name")
+        if [ -n "$value" ]; then
+            set_setting_line "$new_file" "$name" "${name}=\"${value}\""
+            case " $SECRET_SETTING_NAMES " in *" $name "*) carried_secret=true ;; esac
+        fi
+    done
+
+    # Back up the current version, with any token or API key removed
+    mkdir -p "$backup_dir"
+    cp "$script_path" "$backup_file"
+    for name in $SECRET_SETTING_NAMES; do
+        if [ -n "$(typed_in_value "$backup_file" "$name")" ]; then
+            set_setting_line "$backup_file" "$name" "${name}=\"\"  # removed from this backup"
+        fi
+    done
+
+    chmod +x "$new_file"
+    mv "$new_file" "$script_path"
+    echo "Successfully updated to v${remote_version}"
+    echo "Previous version backed up to $backup_file (without your token or API key)"
+    if $carried_secret; then
+        echo ""
+        echo "Tip: your Plex token or Jellyfin API key is typed into this script."
+        echo "Moving it to a settings file keeps it out of the script and anything you share:"
+        echo "https://github.com/jeremehancock/Ludanta#configuration"
+    fi
+
+    exit 0
+}
+
+# Prints the value typed into a script file for one setting ($1 = file, $2 = name).
+# Prints nothing if the line still reads from the settings file or environment
+# (its value contains a $), or if the value is empty.
+typed_in_value() {
+    local line value
+    line=$(grep -a "^$2=" "$1" | head -n 1)
+    [ -z "$line" ] && return 0
+    value=${line#*=}
+    case "$value" in
+        \"*) value=${value#\"}; value=${value%%\"*} ;;
+        *)   value=${value%%[[:space:]#]*} ;;
+    esac
+    case "$value" in
+        *'$'*) return 0 ;;
+    esac
+    printf '%s' "$value"
+}
+
+# Replaces the line that sets one setting in a file ($1 = file, $2 = name, $3 = new line).
+# Plain bash, so it works the same on Linux and macOS.
+set_setting_line() {
+    local tmp="$1.tmp.$$" line
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            "$2="*) printf '%s\n' "$3" ;;
+            *)      printf '%s\n' "$line" ;;
+        esac
+    done < "$1" > "$tmp" && mv "$tmp" "$1"
 }
 
 check_dependencies() {
